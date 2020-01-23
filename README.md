@@ -2,7 +2,7 @@
 Code for the High Altitude balloon
 
 ##### Writing your Own Code
-See .md on how to write your own code to interpret the messages. 
+See <a href="https://github.com/mutableGrape/High-Altitude-Balloon/blob/master/HelpWritingYourOwnCode.md#writing-a-python-script-for-the-balloon">HelpWritingYouOwnCode.md</a> on how to write your own code to interpret the messages. 
 
 ## DUSEDS_HAB01_Pi_Script.py
 This file uses the Gmail API (__Iridium_Beacon_GMail_Downloader_RockBLOCK.py__ by <a href="https://github.com/PaulZC/Iridium_9603_Beacon/tree/master/Python">Paul Clark</a>) to download Short Burst Data messages received via email. It then reads the file and writes the data to a dictionary (basically a list with placenames). This data is then used to to create a Facebook post. 
