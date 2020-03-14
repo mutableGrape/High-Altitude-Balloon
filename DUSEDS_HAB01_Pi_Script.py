@@ -353,9 +353,6 @@ if __name__ == "__main__":
     WriteToLog(log_file, "Updated LAST_TWEET_DATE to: " + LAST_TWEET_DATE)
     WriteToLog(log_file, "Beginning main loop")
 
-    FAILED_TWITTER_UPLOADS = []
-    FAILED_SHEETS_UPLOADS = []
-
     while(1):
 
         RETRY_STACK_ = []
