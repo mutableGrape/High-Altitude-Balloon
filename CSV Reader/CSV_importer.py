@@ -12,11 +12,11 @@ def import_from_csv(filename):
     split_contents = [entry.split(",") for entry in contents.split("\n") if entry != ""]
 
     data_dictionarys = []
-    for entry in split_contents:
+    for entry in split_contents[1:]:    # Exclude titles
         new_dict = dict()
              
-        new_dict["RockBLOCK Base Serial"] = entry[0]    # Base RockBLOCK serial number       
-        new_dict["GPS TX Time"] = [entry[1][:4]] + [entry[1][i:i+2] for i in range(4,14,2)]  # GPS Tx Time (YYYYMMDDHHMMSS)               
+        new_dict["MOMSN"] = entry[0]                    # Message MOMSN       
+        new_dict["GPS TX Time"] = entry[1]              # GPS Tx Time "DD/MM/YYY HH:MM:SS"               
         new_dict["GPS Lat"] = float(entry[2])           # GPS Lat             
         new_dict["GPS Long"] = float(entry[3])          # GPS Long         
         new_dict["GPS Alt"] = int(entry[4])             # GPS Alt           
@@ -29,7 +29,6 @@ def import_from_csv(filename):
         new_dict["Temperature"] = float(entry[11])      # Temperature               
         new_dict["Battery"] = float(entry[12])          # Battery           
         new_dict["Iteration"] = int(entry[13])          # Iteration Count                       
-        #new_dict["Serial Number"] = entry[14]           # RockBlock Serial No.
         data_dictionarys.append(new_dict)
 
     return data_dictionarys
