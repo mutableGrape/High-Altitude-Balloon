@@ -1,6 +1,6 @@
 # Writing a Python Script for the Balloon
 
-This guide is for creating a program that directly interacts with the GMail API. To simply use the .csv file from the Google Sheets page, see [HelpWritingYourOwnCode(CSV).md](../HelpWritingYourOwnCode(CSV).md). 
+This guide is for creating a program that directly interacts with the GMail API. To simply use the .csv file from the Google Sheets page, see [HelpWritingYourOwnCode(CSV).md](HelpWritingYourOwnCode(CSV).md). 
 
 ### Getting Started
 
