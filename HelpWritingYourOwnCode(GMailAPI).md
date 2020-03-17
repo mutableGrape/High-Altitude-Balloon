@@ -1,12 +1,14 @@
 # Writing a Python Script for the Balloon
 
+This guide is for creating a program that directly interacts with the GMail API. To simply use the .csv file from the Google Sheets page, see [HelpWritingYourOwnCode(CSV).md](../HelpWritingYourOwnCode(CSV).md). 
+
 ### Getting Started
 
 Firstly, make a clear plan of what you want your code to do. Python runs line-by-line, so it can only do one thing at a time so bare this in mind. For example, if you wanted the code to create a plot of the temperature for the previous week's data your code would take the general form:
 
 1. Open Last 30 messages
 2. Check which ones are from the previous week
-3. For those messages save the temerature reading and date/time in two lists
+3. For those messages save the temperature reading and date/time in two lists
 4. Create a plot of the time vs temerature
 5. Save the plot as an image file
 
