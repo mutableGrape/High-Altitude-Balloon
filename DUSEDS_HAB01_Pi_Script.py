@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from TwitterAPI import TwitterAPI, TwitterError
 
 
-TWITTER_KZ = ""
+TWITTER_KZ = ""                     # Directory to Twitter Key File
 CHECK_FREQ = 15                     # How often it checks for new messages in seconds
 SBD_DIR = "SBD"                     # Folder name for SBD files
 LAST_TWEET_DATE = ""                # "YYYY-MM-DD"
