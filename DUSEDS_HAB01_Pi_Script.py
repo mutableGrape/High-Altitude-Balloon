@@ -1,6 +1,6 @@
-from Iridium_Beacon_GMail_Downloader_RockBLOCK import get_credentials, GetAttachmentFilenames, SaveAttachments, GetSubject, ListMessagesMatchingQuery, MarkAsRead, httplib2, discovery, MoveToLabel
-import Iridium_Beacon_Sheets_Uploader as shts
-import random, sys, time
+import Iridium_Beacon_GMail_Downloader_RockBLOCK as gmail_downloader
+import Iridium_Beacon_Sheets_Uploader as sheets_uploader
+import random, sys, time, os
 from datetime import datetime
 from mpl_toolkits.basemap import Basemap
 import matplotlib.pyplot as plt
@@ -9,26 +9,29 @@ from TwitterAPI import TwitterAPI, TwitterError
 
 TWITTER_KZ = ""
 CHECK_FREQ = 15                     # How often it checks for new messages in seconds
-GIVE_UP_TIME = 22                   # Time at which it reports no new messages [hour]
 SBD_DIR = "SBD"                     # Folder name for SBD files
-LAST_TWEET_DATE = ""                # YYYY-MM-DD
+LAST_TWEET_DATE = ""                # "YYYY-MM-DD"
 MAP_IMAGE_FILENAME = "MAP_IMAGE.png"# Image file to save map rendering to
-TWITTER_ATTEMPTS = 2                # Number of attempts for interacting with twitter
+TWITTER_ATTEMPTS = 2                # Number of attempts for interacting with twitter API before giving up
 TWITTER_WAIT = 15*60                # Time to wait in seconds between attempts
-SHEETS_ATTEMPTS = 4                 # "                                     " Google Spreadsheets
+SHEETS_ATTEMPTS = 4                 # Number of attempts for interacting with Google Spreadsheets
 LAT_SPACING = 3                     # Parameter for map image
-NO_MSGS_MSG = False
-RETRY_STACK = []                    # List for messages which failed to upload to either sheets or twitter (or both)
+NO_MSGS_MSG = False                 # Determines whether a post will be made if no messages were received before GIVE_UP_TIME
+GIVE_UP_TIME = 22                   # Time at which it reports no new messages [hour]
+RETRY_LIST = []                     # List for messages which failed to upload to either sheets or twitter (or both)
 
 
 def ValidCoords(data_entry):
     return data_entry['GPS Long'] != 0 and data_entry['GPS Lat'] != 0
 
+
 def ValidReadings(data_entry):
     return data_entry['Pressure'] != -1
 
+
 def GetMOMSN(filename):
     return filename[16:-4]
+
 
 def ValidSBDFile(filename):
     return filename[-4:] == ".bin" and filename[15:16] == "-"
@@ -36,23 +39,23 @@ def ValidSBDFile(filename):
 
 def GetNewMessages():
     filenames = []
-    credentials = get_credentials()
-    http = credentials.authorize(httplib2.Http())
-    service = discovery.build('gmail', 'v1', http=http, cache_discovery=False)
+    credentials = gmail_downloader.get_credentials()
+    http = credentials.authorize(gmail_downloader.httplib2.Http())
+    service = gmail_downloader.discovery.build('gmail', 'v1', http=http, cache_discovery=False)
 
-    messages = ListMessagesMatchingQuery(service, 'me', 'is:unread has:attachment')
+    messages = gmail_downloader.ListMessagesMatchingQuery(service, 'me', 'is:unread has:attachment')
     if messages:
         for message in messages:
-            if GetSubject(service, 'me', message["id"])).count("from RockBLOCK") > 0:
-                print('Processing: '+GetSubject(service, 'me', message["id"]))
-                SaveAttachments(service, SBD_DIR, 'me', message["id"])
-                filenames.append(GetAttachmentFilenames(service, 'me', message['id'])[0])
-                MarkAsRead(service, 'me', message["id"])
-                MoveToLabel(service, 'me', message["id"], 'SBD')
+            if gmail_downloader.GetSubject(service, 'me', message["id"]).count("from RockBLOCK") > 0:
+                print('Processing: '+gmail_downloader.GetSubject(service, 'me', message["id"]))
+                gmail_downloader.SaveAttachments(service, SBD_DIR, 'me', message["id"])
+                filenames.append(gmail_downloader.GetAttachmentFilenames(service, 'me', message['id'])[0])
+                gmail_downloader.MarkAsRead(service, 'me', message["id"])
+                gmail_downloader.MoveToLabel(service, 'me', message["id"], 'SBD')
     return filenames
 
 
-def LoadData(new_files):
+def LoadData(new_files):        # Takes in a list of filenames and returns a list of dictionaries with each file's data formatted
     data_dict = []
     for filename in new_files:
         entry = []
@@ -108,7 +111,7 @@ def PlotCoordinates(coords):   # coords = [(lat, lon, alt) for i in positions], 
     m = Basemap(width=3600000, height=2700000, projection='lcc', resolution='l', lat_1=lat-LAT_SPACING, lat_2=lat+LAT_SPACING, lat_0=lat, lon_0=lon)
     m.drawcountries(linewidth=1)
     m.drawstates(color='b')
-    #m.drawcounties(color='b')      ' Throws an error for some reason - beleive it's an error in the shape file
+    #m.drawcounties(color='b')      # Throws an error for some reason - beleive it's an error in the shape file
     m.bluemarble()
 
     coords_filtered = [(lat, lon, alt) for lat, lon, alt in coords if lat != 0.0 and lon != 0.0 and alt != 0.0]
@@ -120,7 +123,7 @@ def PlotCoordinates(coords):   # coords = [(lat, lon, alt) for i in positions], 
     m.plot(xs, ys, '.-r', c="r")#alts)
     plt.savefig(MAP_IMAGE_FILENAME, bbox_inches='tight', pad_inches=0)
 
-def GenerateGreeting():
+def GenerateGreeting():     # Randomly chooses a greeting
     morning_greetings = ["Good morning!", "Morning all,", "Good morning everyone,", "Morning everyone,"]
     afternoon_greetings = ["Good Afternoon,", "Afternoon all,", "Good afternoon everyone,", "Afternoon everyone,", "Afternoon all :),"]
     general_greetings = ["Hello!", "Hello,", "Hi everyone,", "Hi everyone!", "Hey peeps,", "Helloooo,"]
@@ -188,8 +191,8 @@ def GeneratePost(data_entry, known_SBDs):
                 output_string += no_data
     post = output_string
 
-    # Produce image, if GPS fix was found
-    if GPS_fix_found:
+    
+    if GPS_fix_found:   # Produce image, if GPS fix was found
         lat_long_alt = LoadDataPointsFromSaved(known_SBDs, ["GPS Lat", "GPS Long", "GPS Alt"])
         PlotCoordinates(lat_long_alt)
         is_image = True
@@ -214,7 +217,7 @@ def WriteToLog(filename, text):
         f.close()
 
 
-def LookForKnownSBDs():
+def LookForKnownSBDs():     # Searches SDB_DIR for SBD files
     known_files = []
     for root, dir, files in os.walk(".\\" + SBD_DIR):
         if root == ".\\" + SBD_DIR:
@@ -225,8 +228,8 @@ def LookForKnownSBDs():
     return known_files
 
 
-##### Functions for Google Sheets ##### 
 
+##### Functions for Google Sheets ##### 
 
 def AppendToSpreadsheet(data):
     attempts = 0
@@ -236,7 +239,6 @@ def AppendToSpreadsheet(data):
             http = credentials.authorize(httplib2.Http())
             service = discovery.build('sheets', 'v4', http=http)
 
-            #data = data.values()[1:-1]
             data[1] = "/".join([str(i) for i in data[1][:3]]) + " " + ":".join([str(i) for i in data[1][3:]])
             shts.AppendRow(service, data)
             return 1
@@ -245,6 +247,7 @@ def AppendToSpreadsheet(data):
             print(str(e))
             attempts += 1
     return 0
+
 
 
 ##### Twitter Functions #####
@@ -301,7 +304,7 @@ def PostToTwitter(api, text, is_image):
     return 0
 
 
-def TwitterTimeToDate(text):
+def TwitterTimeToDate(text):    # Formats twitter time into date string required for LAST_TWEET_DATE
     months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
     year = text[-4:]
     month = months.index(text[4:7]) + 1
@@ -309,7 +312,7 @@ def TwitterTimeToDate(text):
     return year + "-" + "0"*bool(month < 10) + str(month) + "-" + date
 
 
-def LastTweetDate(api):
+def LastTweetDate(api):     # Fetches the date of the last tweet 
     attempts = 0
     while attempts < TWITTER_ATTEMPTS:
         try:
@@ -323,7 +326,6 @@ def LastTweetDate(api):
         attempts += 1
     return None 
 
-    
 
 
 if __name__ == "__main__":
@@ -343,8 +345,8 @@ if __name__ == "__main__":
     WriteToLog(log_file, "Loading Twitter API Key from " + TWITTER_KZ)
 
     TAPI_KEY = LoadTwitterKey(TWITTER_KZ)
-    API = TwitterAPI(TAPI_KEY[0], TAPI_KEY[1], TAPI_KEY[2], TAPI_KEY[3])
-    LAST_TWEET_DATE = LastTweetDate(API)
+    TWTR_API = TwitterAPI(TAPI_KEY[0], TAPI_KEY[1], TAPI_KEY[2], TAPI_KEY[3])
+    LAST_TWEET_DATE = LastTweetDate(TWTR_API)
     
     if LAST_TWEET_DATE == None:
         WriteToLog(log_file, "Failed to retrieve time of last Twitter post.")
@@ -355,12 +357,12 @@ if __name__ == "__main__":
 
     while(1):
 
-        RETRY_STACK_ = []
+        RETRY_LIST_ = []
         
-        if RETRY_STACK:
+        if RETRY_LIST:      # If there exists messages that failed to upload last time, try and upload them again
             WriteToLog(log_file, "Found items to retry uploading")
 
-            for data, sheets_upload_success, twitter_upload_success in RETRY_STACK:
+            for data, sheets_upload_success, twitter_upload_success in RETRY_LIST:
                 WriteToLog(log_file, "Re-Processing MOMSN: " + str(data["MOMSN"]))
                 
                 if not sheets_upload_success:
@@ -373,23 +375,25 @@ if __name__ == "__main__":
                     sheets_upload_success = AppendToSpreadsheet(sheets_entry)
                 
                 if not twitter_upload_success:
-                    post, load_img = GeneratePost(data, [sbd for sbd in known_SBDs if int(sbd[16:-4]) <= data["MOMSN"]])          # Generate post from data
+                    post, load_img = GeneratePost(data, [sbd for sbd in known_SBDs if int(sbd[16:-4]) <= data["MOMSN"]])   # Generate post from data
                     WriteToLog(log_file, "Made post: " + post)
 
                     if load_img: WriteToLog(log_file, "Will also load image.")
 
-                    twitter_upload_success = PostToTwitter(API, post, load_img)
+                    twitter_upload_success = PostToTwitter(TWTR_API, post, load_img)
                 
                 if not twitter_upload_success or not sheets_upload_success:
-                    RETRY_STACK_.append([data, sheets_upload_success, twitter_upload_success])
-                    WriteToLog(log_file, "One of the uploads failed (" + "twitter"*bool(twitter_upload_success) + ","*bool(twitter_upload_success and sheets_upload_success) + "sheets"*bool(sheets_upload_success) + ". Adding it to RETRY_STACK, MOMSN: " + str(data["MOMSN"]))
+                    RETRY_LIST_.append([data, sheets_upload_success, twitter_upload_success])
+                    WriteToLog(log_file, "One of the uploads failed (" + "twitter"*bool(twitter_upload_success) + ","*bool(twitter_upload_success and sheets_upload_success) + "sheets"*bool(sheets_upload_success) + ". Adding it to RETRY_LIST, MOMSN: " + str(data["MOMSN"]))
 
-        RETRY_STACK = RETRY_STACK_[:]
+        RETRY_LIST = RETRY_LIST_[:]
 
         WriteToLog(log_file, "Looking for new messages on GMAIL")
         new_message_filenames = GetNewMessages()
 
-        if new_message_filenames:
+
+
+        if new_message_filenames:       # If new messages found, format and upload them
 
             WriteToLog(log_file, "Messages Found!")
 
@@ -398,30 +402,30 @@ if __name__ == "__main__":
                 sheets_upload_success = False
                 twitter_upload_success = False
 
-                known_SBDs.append(message_filename)
+                known_SBDs.append(message_filename)     # Add SDB file to list of known SBDs
                 known_SBDs = sorted(known_SBDs, key=lambda x: int(x[16:-4]))
 
                 data = LoadData([message_filename])[0]     # Load data into dictionaries
 
                 sheets_entry = [data["MOMSN"], data["GPS TX Time"],data["GPS Lat"],data["GPS Long"],data["GPS Alt"],data["GPS Speed"],       
                         data["GPS Heading"],data["GPS HDOP"],data["GPS Sat"],data["Pressure"],data["Humidity"],data["Temperature"],          
-                        data["Battery"],data["Iteration"]]
+                        data["Battery"],data["Iteration"]]          # Select data for spreadsheet
                 
                 WriteToLog(log_file, "Read Data: " + ",".join([str(i) for i in sheets_entry]))
                 
-                sheets_upload_success = AppendToSpreadsheet(sheets_entry)
+                sheets_upload_success = AppendToSpreadsheet(sheets_entry)       # Append to spreadsheet
 
                 if sheets_upload_success:
                     WriteToLog(log_file, "Appended data to Google Spreadsheet")
                 else:
                     WriteToLog(log_file, "Failed to append data to Spreadsheet")
 
-                post, load_img = GeneratePost(data, known_SBDs)          # Generate post from data
+                post, load_img = GeneratePost(data, known_SBDs)          # Generate a twitter post from the data
                 WriteToLog(log_file, "Made post: " + post)
 
                 if load_img: WriteToLog(log_file, "Will also load image.")
 
-                twitter_upload_success = PostToTwitter(API, post, load_img)             # Post it to twitter
+                twitter_upload_success = PostToTwitter(TWTR_API, post, load_img)             # Post it to twitter
 
                 if not twitter_upload_success:
                     WriteToLog(log_file, "Failed to post to twitter. Appended filename to FAILED_FILES")
@@ -430,9 +434,9 @@ if __name__ == "__main__":
                     LAST_TWEET_DATE = str(datetime.now().date())
                     WriteToLog(log_file, "Updated LAST_POST_DATE: " + str(LAST_TWEET_DATE))
 
-                if not twitter_upload_success or not sheets_upload_success:
-                    RETRY_STACK.append((data, sheets_upload_success, twitter_upload_success))
-                    WriteToLog(log_file, "One of the uploads failed (" + "twitter"*bool(twitter_upload_success) + ","*bool(twitter_upload_success and sheets_upload_success) + "sheets"*bool(sheets_upload_success) + ". Adding it to RETRY_STACK, MOMSN: " + str(data["MOMSN"]))
+                if not twitter_upload_success or not sheets_upload_success:     # If either upload failed, append to a retry list
+                    RETRY_LIST.append((data, sheets_upload_success, twitter_upload_success))
+                    WriteToLog(log_file, "One of the uploads failed (" + "twitter"*bool(twitter_upload_success) + ","*bool(twitter_upload_success and sheets_upload_success) + "sheets"*bool(sheets_upload_success) + ". Adding it to RETRY_LIST, MOMSN: " + str(data["MOMSN"]))
 
         else:
             WriteToLog(log_file, "No new messages")
@@ -443,7 +447,7 @@ if __name__ == "__main__":
             post, load_image = GeneratePost([],[])
             WriteToLog(log_file, "Generated post: " + post['body'])
 
-            PostToTwitter(API, post, load_img)
+            PostToTwitter(TWTR_API, post, load_img)
             WriteToLog(log_file, "Posted to twitter")
 
         WriteToLog(log_file, "Going back to sleep...")
